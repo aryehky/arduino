@@ -1,6 +1,6 @@
 on:
   schedule:
-   - cron: "0 */2 * * *"
+    - cron: "0 */2 * * *"
 env:
   GIT_AUTHOR_NAME: aryehky
   GIT_AUTHOR_EMAIL: kyky0112@gmail.com
@@ -17,7 +17,7 @@ jobs:
       run: |
         git config --global user.email "action@github.com"
         git config --global user.name "GitHub Action"
-        echo "." >> README.md
+        sed -i '$s/.$//' README.md
         git add .
         git commit -m "Made changes to README"
         git push origin HEAD
