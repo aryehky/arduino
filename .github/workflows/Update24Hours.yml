@@ -1,0 +1,41 @@
+on:
+  schedule:
+    - cron: "0 */24 * * *"
+
+env:
+  GIT_AUTHOR_NAME: aryehky
+  GIT_AUTHOR_EMAIL: kyky0112@gmail.com
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Configure Git
+      run: |
+        git config --global user.email "$GIT_AUTHOR_EMAIL"
+        git config --global user.name "$GIT_AUTHOR_NAME"
+
+    - name: Randomly decide to make changes
+      run: |
+        rand=$(shuf -i 1-2 -n 1)
+        if [ $rand -eq 1 ]; then
+          echo "." >> README.md
+        else
+          echo "No changes made."
+        fi
+
+    - name: Check if changes were made
+      run: |
+        if [[ -n $(git status -s) ]]; then
+          git add .
+          git commit -m "Update README.md"
+          git push origin HEAD
+        else
+          echo "No changes to commit."
+        fi
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
