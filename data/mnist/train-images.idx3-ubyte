@@ -1,0 +1,14 @@
+[train-images.idx3-ubyte]
+
+Magic Number: 0x00000803 (2051 in decimal)   // File format identifier (not to be confused with the magic number in C++)
+
+Number of Images: 60000                      // Total number of images in the dataset
+
+Number of Rows: 28                           // Height of each image
+Number of Columns: 28                        // Width of each image
+
+Pixel Data:                                  // Pixel data for each image
+[offset 0] [offset 1] [offset 2] ... [offset 783]  // 784 bytes per image (28x28 = 784 pixels)
+[offset 784] [offset 785] ... [offset 1567]
+...
+[offset 470399] [offset 470400] ... [offset 499999]  // Last image
