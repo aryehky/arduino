@@ -1,0 +1,33 @@
+on:
+  schedule:
+    - cron: "*/5 * * * *"  # Runs every 5 minutes
+
+env:
+  GIT_AUTHOR_NAME: aryehky
+  GIT_AUTHOR_EMAIL: kyky0112@gmail.com
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Configure Git
+      run: |
+        git config --global user.email "action@github.com"
+        git config --global user.name "GitHub Action"
+
+    - name: Make changes
+      run: echo "." >> README.md
+
+    - name: Commit changes
+      run: |
+        git add .
+        git commit -m "Made changes to README"
+
+    - name: Push changes
+      run: git push origin HEAD
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
