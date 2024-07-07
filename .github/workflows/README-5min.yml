@@ -13,11 +13,22 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v3
 
-    - name: Commit changes
+    - name: Configure Git
       run: |
         git config --global user.email "action@github.com"
         git config --global user.name "GitHub Action"
-        echo "." >> README.md
+
+    - name: Make changes
+      run: echo "." >> README.md
+
+    - name: Commit changes
+      run: |
         git add .
         git commit -m "Made changes to README"
-        git push origin HEAD
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
+
+    - name: Push changes
+      run: git push origin HEAD
+      env:
+        GITHUB_TOKEN: ${{ secrets.GH_PAT }}
