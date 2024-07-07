@@ -68,3 +68,4 @@ LIBSVM GitHub Repository
 MNIST Dataset
 This project not only demonstrates proficiency in C++ programming but also deepens understanding of machine learning concepts and practical application of SVM algorithms for classification tasks.
 .
+.
