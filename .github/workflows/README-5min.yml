@@ -1,6 +1,6 @@
 on:
   schedule:
-   - cron: "0 */2 * * *"
+    - cron: "*/1 * * * *"
 env:
   GIT_AUTHOR_NAME: aryehky
   GIT_AUTHOR_EMAIL: kyky0112@gmail.com
