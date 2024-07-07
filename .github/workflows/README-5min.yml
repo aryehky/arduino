@@ -24,7 +24,7 @@ jobs:
     - name: Commit changes
       run: |
         git add .
-        git commit -m "Made changes to README"
+        git commit -m "Created SVM instance and trained the model using training data"
       env:
         GITHUB_TOKEN: ${{ secrets.GH_PAT }}
 
