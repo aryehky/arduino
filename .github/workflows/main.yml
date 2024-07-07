@@ -1,4 +1,4 @@
-on:
+/*on:
   schedule:
     - cron: "0 */2 * * *"
 env:
@@ -20,4 +20,4 @@ jobs:
         sed -i '$s/.$//' README.md
         git add .
         git commit -m "Made changes to README"
-        git push origin HEAD
+        git push origin HEAD*/
