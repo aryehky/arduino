@@ -58,27 +58,23 @@ int main() {
 
     return 0;
 }
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
-.
+
+## Project Structure
+
+```
+arduino/
+├── .git/
+├── .github/
+├── data/
+│   └── mnist/
+│   │   └── train-images.idx3-ubyte
+├── include/
+├── lights/
+│   ├── rbg-light-with-rotary-encoder-push-button.ino
+│   ├── rgb.ino
+│   └── rotary-encoder-with-push-button.ino
+├── src/
+│   └── main.cpp
+└── README.md
+
+```
