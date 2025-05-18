@@ -2,6 +2,8 @@
 #include <svm.h> // LIBSVM header
 #include <stdexcept>
 #include <cstring>
+#include <random>
+#include <algorithm>
 
 struct SVMModel {
     svm_model* model;
@@ -35,10 +37,13 @@ SVM::~SVM() {
 }
 
 void SVM::train(const std::vector<std::vector<double>>& features, 
-                const std::vector<int>& labels) {
+                const std::vector<int>& labels,
+                const utils::ProgressCallback& progress_callback) {
     if (features.empty() || labels.empty() || features.size() != labels.size()) {
         throw std::invalid_argument("Invalid training data");
     }
+
+    utils::updateProgress(0.0f, "Preparing training data...", progress_callback);
 
     // Prepare problem
     model->prob.l = features.size();
@@ -55,8 +60,15 @@ void SVM::train(const std::vector<std::vector<double>>& features,
             model->prob.x[i][j].value = features[i][j];
         }
         model->prob.x[i][features[i].size()].index = -1;
+
+        if (progress_callback) {
+            float progress = static_cast<float>(i) / model->prob.l * 0.5f;
+            utils::updateProgress(progress, "Converting features...", progress_callback);
+        }
     }
 
+    utils::updateProgress(0.5f, "Training model...", progress_callback);
+    
     // Train model
     model->model = svm_train(&model->prob, &model->param);
 
@@ -66,6 +78,8 @@ void SVM::train(const std::vector<std::vector<double>>& features,
     }
     delete[] model->prob.x;
     delete[] model->prob.y;
+
+    utils::updateProgress(1.0f, "Training completed", progress_callback);
 }
 
 int SVM::predict(const std::vector<double>& feature) {
@@ -85,12 +99,21 @@ int SVM::predict(const std::vector<double>& feature) {
     return static_cast<int>(prediction);
 }
 
-std::vector<int> SVM::predict(const std::vector<std::vector<double>>& features) {
+std::vector<int> SVM::predict(const std::vector<std::vector<double>>& features,
+                            const utils::ProgressCallback& progress_callback) {
     std::vector<int> predictions;
     predictions.reserve(features.size());
-    for (const auto& feature : features) {
-        predictions.push_back(predict(feature));
+
+    for (size_t i = 0; i < features.size(); ++i) {
+        predictions.push_back(predict(features[i]));
+
+        if (progress_callback) {
+            float progress = static_cast<float>(i) / features.size();
+            utils::updateProgress(progress, "Making predictions...", progress_callback);
+        }
     }
+
+    utils::updateProgress(1.0f, "Predictions completed", progress_callback);
     return predictions;
 }
 
@@ -154,4 +177,169 @@ void SVM::loadModel(const std::string& filename) {
     if (!model->model) {
         throw std::runtime_error("Failed to load model");
     }
+}
+
+double SVM::crossValidate(const std::vector<std::vector<double>>& features,
+                         const std::vector<int>& labels,
+                         size_t k,
+                         const utils::ProgressCallback& progress_callback) {
+    auto folds = utils::createKFolds(features.size(), k);
+    double total_accuracy = 0.0;
+
+    for (size_t fold = 0; fold < k; ++fold) {
+        utils::updateProgress(static_cast<float>(fold) / k, 
+                            "Processing fold " + std::to_string(fold + 1) + "/" + std::to_string(k),
+                            progress_callback);
+
+        // Prepare training and validation sets
+        std::vector<std::vector<double>> train_features, val_features;
+        std::vector<int> train_labels, val_labels;
+
+        for (size_t idx : folds[fold].first) {
+            train_features.push_back(features[idx]);
+            train_labels.push_back(labels[idx]);
+        }
+
+        for (size_t idx : folds[fold].second) {
+            val_features.push_back(features[idx]);
+            val_labels.push_back(labels[idx]);
+        }
+
+        // Train on this fold
+        train(train_features, train_labels);
+
+        // Evaluate on validation set
+        total_accuracy += getAccuracy(val_features, val_labels);
+    }
+
+    utils::updateProgress(1.0f, "Cross-validation completed", progress_callback);
+    return total_accuracy / k;
+}
+
+utils::GridSearchResult SVM::gridSearch(const std::vector<std::vector<double>>& features,
+                                      const std::vector<int>& labels,
+                                      const utils::ParamGrid& param_grid,
+                                      size_t k,
+                                      const utils::ProgressCallback& progress_callback) {
+    utils::GridSearchResult best_result;
+    best_result.best_accuracy = 0.0;
+
+    size_t total_combinations = param_grid.kernel_types.size() * 
+                              param_grid.C_values.size() * 
+                              param_grid.gamma_values.size();
+    size_t current_combination = 0;
+
+    for (const auto& kernel : param_grid.kernel_types) {
+        for (double C : param_grid.C_values) {
+            for (double gamma : param_grid.gamma_values) {
+                float progress = static_cast<float>(current_combination) / total_combinations;
+                std::string status = "Testing kernel=" + kernel + ", C=" + std::to_string(C) + 
+                                   ", gamma=" + std::to_string(gamma);
+                utils::updateProgress(progress, status, progress_callback);
+
+                double accuracy = evaluateParams(features, labels, kernel, C, gamma, k);
+
+                if (accuracy > best_result.best_accuracy) {
+                    best_result.best_accuracy = accuracy;
+                    best_result.best_kernel = kernel;
+                    best_result.best_C = C;
+                    best_result.best_gamma = gamma;
+                }
+
+                current_combination++;
+            }
+        }
+    }
+
+    // Set the best parameters
+    setKernelType(best_result.best_kernel);
+    setC(best_result.best_C);
+    setGamma(best_result.best_gamma);
+
+    utils::updateProgress(1.0f, "Grid search completed", progress_callback);
+    return best_result;
+}
+
+double SVM::evaluateParams(const std::vector<std::vector<double>>& features,
+                          const std::vector<int>& labels,
+                          const std::string& kernel_type,
+                          double C,
+                          double gamma,
+                          size_t k) {
+    // Save current parameters
+    auto current_kernel = model->param.kernel_type;
+    auto current_C = model->param.C;
+    auto current_gamma = model->param.gamma;
+
+    // Set new parameters
+    setKernelType(kernel_type);
+    setC(C);
+    setGamma(gamma);
+
+    // Perform cross-validation
+    double accuracy = crossValidate(features, labels, k);
+
+    // Restore original parameters
+    model->param.kernel_type = current_kernel;
+    model->param.C = current_C;
+    model->param.gamma = current_gamma;
+
+    return accuracy;
+}
+
+utils::ConfusionMatrix SVM::getConfusionMatrix(const std::vector<std::vector<double>>& test_features,
+                                             const std::vector<int>& test_labels,
+                                             size_t num_classes) {
+    utils::ConfusionMatrix cm(num_classes);
+    auto predictions = predict(test_features);
+
+    for (size_t i = 0; i < predictions.size(); ++i) {
+        cm.update(test_labels[i], predictions[i]);
+    }
+
+    return cm;
+}
+
+void SVM::augmentTrainingData(const std::vector<std::vector<double>>& original_features,
+                            const std::vector<int>& original_labels,
+                            size_t num_augmented_per_sample,
+                            const utils::ProgressCallback& progress_callback) {
+    std::vector<std::vector<double>> augmented_features;
+    std::vector<int> augmented_labels;
+    
+    size_t total_samples = original_features.size() * num_augmented_per_sample;
+    size_t current_sample = 0;
+
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> angle_dist(-15.0, 15.0);
+    std::uniform_int_distribution<> shift_dist(-2, 2);
+
+    for (size_t i = 0; i < original_features.size(); ++i) {
+        for (size_t j = 0; j < num_augmented_per_sample; ++j) {
+            // Apply random augmentations
+            std::vector<double> augmented = original_features[i];
+            
+            if (j % 3 == 0) {
+                augmented = utils::addGaussianNoise(augmented);
+            } else if (j % 3 == 1) {
+                augmented = utils::rotate(augmented, 28, 28, angle_dist(gen));
+            } else {
+                augmented = utils::translate(augmented, 28, 28, 
+                                          shift_dist(gen), shift_dist(gen));
+            }
+
+            augmented_features.push_back(augmented);
+            augmented_labels.push_back(original_labels[i]);
+
+            if (progress_callback) {
+                float progress = static_cast<float>(current_sample) / total_samples;
+                utils::updateProgress(progress, "Generating augmented samples...", progress_callback);
+                current_sample++;
+            }
+        }
+    }
+
+    // Add augmented data to training set
+    train(augmented_features, augmented_labels, progress_callback);
 } 

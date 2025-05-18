@@ -13,6 +13,7 @@ set(SOURCES
     src/main.cpp
     src/dataset.cpp
     src/svm.cpp
+    src/utils.cpp
 )
 
 # Create executable
@@ -25,4 +26,11 @@ target_include_directories(digit_recognition PRIVATE
 )
 
 # Link libraries
-target_link_libraries(digit_recognition PRIVATE ${LIBSVM_LIBRARY}) 
+target_link_libraries(digit_recognition PRIVATE ${LIBSVM_LIBRARY})
+
+# Add compiler flags
+if(MSVC)
+    target_compile_options(digit_recognition PRIVATE /W4)
+else()
+    target_compile_options(digit_recognition PRIVATE -Wall -Wextra -Wpedantic)
+endif() 
