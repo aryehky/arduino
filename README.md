@@ -18,6 +18,23 @@ This project implements a comprehensive digit recognition system using Support V
   - F1 score
   - Accuracy metrics
 
+### Image Preprocessing
+- **Basic Operations:**
+  - Normalization (min-max scaling)
+  - Standardization (zero mean, unit variance)
+  - Binarization with configurable threshold
+- **Advanced Processing:**
+  - Noise removal using median filtering
+  - Contrast adjustment
+  - Image sharpening
+- **Batch Processing:**
+  - Process multiple images with configurable pipeline
+  - Parallel processing support
+- **Analysis Tools:**
+  - Statistical analysis (mean, stddev, min, max)
+  - Entropy calculation
+  - Image validation utilities
+
 ### User Interface & Utilities
 - **Progress Tracking:** Visual progress bars for long operations
 - **CLI Tools:**
@@ -33,6 +50,7 @@ This project implements a comprehensive digit recognition system using Support V
 - C++17 compatible compiler
 - CMake (version 3.10 or higher)
 - LIBSVM library
+- OpenCV library
 - (Optional) Python with matplotlib for visualization
 
 ### Installation
@@ -40,7 +58,7 @@ This project implements a comprehensive digit recognition system using Support V
 #### macOS
 ```bash
 # Install dependencies
-brew install cmake libsvm
+brew install cmake libsvm opencv
 
 # Clone the repository
 git clone https://github.com/yourusername/digit-recognition-svm.git
@@ -58,7 +76,7 @@ make
 ```bash
 # Install dependencies
 sudo apt-get update
-sudo apt-get install cmake libsvm-dev
+sudo apt-get install cmake libsvm-dev libopencv-dev
 
 # Follow the same build steps as macOS
 ```
@@ -66,7 +84,7 @@ sudo apt-get install cmake libsvm-dev
 #### Windows
 ```bash
 # Using vcpkg
-vcpkg install libsvm:x64-windows
+vcpkg install libsvm:x64-windows opencv:x64-windows
 
 # Configure with CMake
 cmake -B build -S . -DCMAKE_TOOLCHAIN_FILE=[path to vcpkg]/scripts/buildsystems/vcpkg.cmake
@@ -117,6 +135,25 @@ chmod +x scripts/download_mnist.sh
 ./digit_recognition --visualize --model model.model
 ```
 
+### 5. Image Preprocessing
+```bash
+# Basic preprocessing
+./digit_recognition --preprocess input.png --normalize --output processed.png
+
+# Advanced preprocessing
+./digit_recognition --preprocess input.png \
+                   --normalize \
+                   --remove-noise \
+                   --adjust-contrast 1.2 \
+                   --output processed.png
+
+# Batch preprocessing
+./digit_recognition --preprocess-batch input_dir/ \
+                   --normalize \
+                   --remove-noise \
+                   --output output_dir/
+```
+
 ## Advanced Usage
 
 ### Grid Search Configuration
@@ -139,6 +176,27 @@ svm.augmentTrainingData(features, labels,
                        2);     // max_translation
 ```
 
+### Preprocessing Configuration
+```cpp
+// Single image preprocessing
+auto preprocessor = preprocessing::ImagePreprocessor();
+auto image = preprocessor.loadImage("input.png");
+image = preprocessor.normalize(image);
+image = preprocessor.removeNoise(image, width, height);
+image = preprocessor.adjustContrast(image, 1.2);
+preprocessor.saveImage("output.png", image, width, height);
+
+// Batch preprocessing with custom pipeline
+std::vector<std::vector<double>> images = loadImages();
+auto processed = preprocessor.batchPreprocess(
+    images,
+    true,   // normalize
+    true,   // remove noise
+    true,   // adjust contrast
+    1.2     // contrast factor
+);
+```
+
 ### Cross-validation
 ```cpp
 // Perform 5-fold cross-validation
@@ -154,13 +212,17 @@ digit-recognition-svm/
 │   └── mnist/             # MNIST dataset files
 ├── include/               # Header files
 │   ├── dataset.h         # Dataset handling
+│   ├── preprocessing.h   # Image preprocessing
 │   ├── svm.h            # SVM implementation
 │   └── utils.h          # Utility functions
 ├── src/                  # Source files
 │   ├── dataset.cpp      # Dataset implementation
 │   ├── main.cpp         # Main program
+│   ├── preprocessing.cpp # Preprocessing implementation
 │   ├── svm.cpp         # SVM implementation
 │   └── utils.cpp       # Utility implementation
+├── tests/               # Test files
+│   └── test_preprocessing.cpp # Preprocessing tests
 └── scripts/             # Utility scripts
     └── download_mnist.sh # Dataset download script
 ```
@@ -170,6 +232,10 @@ digit-recognition-svm/
 - Enable data augmentation for better generalization
 - Use appropriate kernel type for your data
 - Adjust C and gamma parameters based on grid search results
+- Apply appropriate preprocessing based on image quality:
+  - Use noise removal for noisy images
+  - Adjust contrast for low-contrast images
+  - Normalize or standardize for consistent scaling
 
 ## Contributing
 1. Fork the repository
@@ -183,5 +249,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 ## Acknowledgments
 - LIBSVM library
+- OpenCV library
 - MNIST dataset
 - Contributors and maintainers
