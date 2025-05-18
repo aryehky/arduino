@@ -14,6 +14,7 @@ set(SOURCES
     src/dataset.cpp
     src/svm.cpp
     src/utils.cpp
+    src/cli.cpp
 )
 
 # Create executable
@@ -33,4 +34,11 @@ if(MSVC)
     target_compile_options(digit_recognition PRIVATE /W4)
 else()
     target_compile_options(digit_recognition PRIVATE -Wall -Wextra -Wpedantic)
-endif() 
+endif()
+
+# Install rules
+install(TARGETS digit_recognition DESTINATION bin)
+install(FILES scripts/download_mnist.sh DESTINATION bin
+        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                   GROUP_READ GROUP_EXECUTE
+                   WORLD_READ WORLD_EXECUTE) 
