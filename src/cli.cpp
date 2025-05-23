@@ -68,6 +68,10 @@ void CLI::showHelp() const {
               << "  --binarize THRESHOLD Apply binarization\n"
               << "  --rotate ANGLE       Rotate image by specified angle (-180 to 180 degrees)\n"
               << "  --scale FACTOR       Scale image by specified factor (0 to 2)\n"
+              << "  --gaussian-blur SIGMA Apply Gaussian blur with specified sigma\n"
+              << "  --edge-detection [sobel|laplacian] Apply edge detection\n"
+              << "  --morphological [erode|dilate] Apply morphological operation\n"
+              << "  --kernel-size SIZE   Specify kernel size for morphological operations\n"
               << "  --help               Show this help message\n";
 }
 
@@ -217,6 +221,44 @@ void CLI::validateScalingOptions() const {
     }
 }
 
+void CLI::validateGaussianOptions() const {
+    if (hasFlag("gaussian-blur")) {
+        try {
+            double sigma = std::stod(getOption("gaussian-blur"));
+            if (sigma <= 0.0) {
+                throw std::runtime_error("Gaussian sigma must be positive");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid Gaussian blur sigma value");
+        }
+    }
+}
+
+void CLI::validateMorphologicalOptions() const {
+    if (hasFlag("morphological")) {
+        std::string operation = getOption("morphological");
+        if (operation != "erode" && operation != "dilate") {
+            throw std::runtime_error("Morphological operation must be 'erode' or 'dilate'");
+        }
+        
+        if (hasFlag("kernel-size")) {
+            try {
+                int size = std::stoi(getOption("kernel-size"));
+                if (size <= 0 || size % 2 == 0) {
+                    throw std::runtime_error("Kernel size must be a positive odd number");
+                }
+            } catch (const std::exception&) {
+                throw std::runtime_error("Invalid kernel size");
+            }
+        }
+    }
+}
+
+void CLI::validateFilteringOptions() const {
+    validateGaussianOptions();
+    validateMorphologicalOptions();
+}
+
 void CLI::validatePreprocessingOptions() const {
     if (hasFlag("preprocess")) {
         if (getOption("preprocess").empty()) {
@@ -260,6 +302,7 @@ void CLI::validatePreprocessingOptions() const {
     
     validateRotationOptions();
     validateScalingOptions();
+    validateFilteringOptions();
 }
 
 void CLI::applyPreprocessingPipeline(const std::string& input_path,
@@ -317,6 +360,25 @@ void CLI::applyPreprocessingPipeline(const std::string& input_path,
         } else {
             img_data = preprocessor.scaleImage(img_data, width, height, scale);
         }
+    }
+    
+    // Apply filtering operations
+    if (hasFlag("gaussian-blur")) {
+        double sigma = std::stod(getOption("gaussian-blur"));
+        img_data = preprocessor.gaussianBlur(img_data, width, height, sigma);
+    }
+    
+    if (hasFlag("edge-detection")) {
+        bool useSobel = getOption("edge-detection") != "laplacian";
+        img_data = preprocessor.edgeDetection(img_data, width, height, useSobel);
+    }
+    
+    if (hasFlag("morphological")) {
+        std::string operation = getOption("morphological");
+        int kernel_size = hasFlag("kernel-size") ? 
+                         std::stoi(getOption("kernel-size")) : 3;
+        img_data = preprocessor.morphologicalOperation(img_data, width, height, 
+                                                     operation, kernel_size);
     }
     
     // Convert back to OpenCV format
