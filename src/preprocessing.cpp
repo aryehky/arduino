@@ -309,4 +309,96 @@ bool validatePixelRange(const std::vector<double>& image,
                       });
 }
 
+std::vector<double> ImagePreprocessor::rotateImage(const std::vector<double>& image,
+                                                 int width,
+                                                 int height,
+                                                 double angle_degrees) {
+    std::vector<double> rotated(width * height, 0.0);
+    double angle_rad = angle_degrees * M_PI / 180.0;
+    double cos_angle = std::cos(angle_rad);
+    double sin_angle = std::sin(angle_rad);
+    
+    // Calculate center point
+    double center_x = (width - 1) / 2.0;
+    double center_y = (height - 1) / 2.0;
+    
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // Calculate rotated coordinates
+            double dx = x - center_x;
+            double dy = y - center_y;
+            double rotated_x = dx * cos_angle - dy * sin_angle + center_x;
+            double rotated_y = dx * sin_angle + dy * cos_angle + center_y;
+            
+            // Use bilinear interpolation to get pixel value
+            rotated[y * width + x] = bilinearInterpolation(image, width, height, rotated_x, rotated_y);
+        }
+    }
+    
+    return rotated;
+}
+
+std::vector<double> ImagePreprocessor::scaleImage(const std::vector<double>& image,
+                                                int original_width,
+                                                int original_height,
+                                                double scale_factor) {
+    int new_width = static_cast<int>(original_width * scale_factor);
+    int new_height = static_cast<int>(original_height * scale_factor);
+    std::vector<double> scaled(new_width * new_height, 0.0);
+    
+    for (int y = 0; y < new_height; ++y) {
+        for (int x = 0; x < new_width; ++x) {
+            // Calculate corresponding position in original image
+            double original_x = x / scale_factor;
+            double original_y = y / scale_factor;
+            
+            // Use bilinear interpolation
+            scaled[y * new_width + x] = bilinearInterpolation(image, original_width, original_height,
+                                                            original_x, original_y);
+        }
+    }
+    
+    return scaled;
+}
+
+std::vector<double> ImagePreprocessor::rotateAndScale(const std::vector<double>& image,
+                                                    int width,
+                                                    int height,
+                                                    double angle_degrees,
+                                                    double scale_factor) {
+    // First rotate, then scale
+    auto rotated = rotateImage(image, width, height, angle_degrees);
+    return scaleImage(rotated, width, height, scale_factor);
+}
+
+std::vector<double> ImagePreprocessor::bilinearInterpolation(const std::vector<double>& image,
+                                                           int width,
+                                                           int height,
+                                                           double x,
+                                                           double y) {
+    // Get the four surrounding pixels
+    int x1 = static_cast<int>(std::floor(x));
+    int y1 = static_cast<int>(std::floor(y));
+    int x2 = std::min(x1 + 1, width - 1);
+    int y2 = std::min(y1 + 1, height - 1);
+    
+    // Calculate interpolation weights
+    double wx = x - x1;
+    double wy = y - y1;
+    
+    // Get pixel values
+    double p11 = image[y1 * width + x1];
+    double p12 = image[y1 * width + x2];
+    double p21 = image[y2 * width + x1];
+    double p22 = image[y2 * width + x2];
+    
+    // Perform bilinear interpolation
+    double interpolated = (1 - wx) * (1 - wy) * p11 +
+                         wx * (1 - wy) * p12 +
+                         (1 - wx) * wy * p21 +
+                         wx * wy * p22;
+    
+    return std::clamp(interpolated, 0.0, 1.0);
+}
+
 } // namespace preprocessing 
