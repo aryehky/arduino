@@ -2,8 +2,11 @@
 #include "svm.h"
 #include "dataset.h"
 #include "utils.h"
+#include "preprocessing.h"
 #include <iostream>
 #include <stdexcept>
+#include <filesystem>
+#include <opencv2/opencv.hpp>
 
 CLI::CLI(int argc, char** argv) {
     for (int i = 1; i < argc; ++i) {
@@ -36,6 +39,10 @@ void CLI::validateOptions() const {
     if (hasFlag("train") && hasFlag("predict")) {
         throw std::runtime_error("Cannot train and predict simultaneously");
     }
+
+    if (hasFlag("preprocess") && hasFlag("preprocess-batch")) {
+        throw std::runtime_error("Cannot use single and batch preprocessing simultaneously");
+    }
 }
 
 void CLI::showHelp() const {
@@ -49,7 +56,19 @@ void CLI::showHelp() const {
               << "  --evaluate           Evaluate model performance\n"
               << "  --visualize          Generate visualizations\n"
               << "  --model PATH         Specify model path\n"
-              << "  --help              Show this help message\n";
+              << "\nPreprocessing Options:\n"
+              << "  --preprocess FILE    Preprocess a single image\n"
+              << "  --preprocess-batch DIR Preprocess all images in directory\n"
+              << "  --output PATH        Output path for processed image(s)\n"
+              << "  --normalize          Apply normalization\n"
+              << "  --standardize        Apply standardization\n"
+              << "  --remove-noise       Apply noise removal\n"
+              << "  --adjust-contrast FACTOR Apply contrast adjustment\n"
+              << "  --sharpen            Apply sharpening\n"
+              << "  --binarize THRESHOLD Apply binarization\n"
+              << "  --rotate ANGLE       Rotate image by specified angle (-180 to 180 degrees)\n"
+              << "  --scale FACTOR       Scale image by specified factor (0 to 2)\n"
+              << "  --help               Show this help message\n";
 }
 
 void CLI::handleTraining() {
@@ -172,6 +191,198 @@ void CLI::handleVisualization() {
     std::cout << "Visualization features not yet implemented\n";
 }
 
+void CLI::validateRotationOptions() const {
+    if (hasFlag("rotate")) {
+        try {
+            double angle = std::stod(getOption("rotate"));
+            if (angle < -180.0 || angle > 180.0) {
+                throw std::runtime_error("Rotation angle must be between -180 and 180 degrees");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid rotation angle");
+        }
+    }
+}
+
+void CLI::validateScalingOptions() const {
+    if (hasFlag("scale")) {
+        try {
+            double factor = std::stod(getOption("scale"));
+            if (factor <= 0.0 || factor > 2.0) {
+                throw std::runtime_error("Scale factor must be between 0 and 2");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid scale factor");
+        }
+    }
+}
+
+void CLI::validatePreprocessingOptions() const {
+    if (hasFlag("preprocess")) {
+        if (getOption("preprocess").empty()) {
+            throw std::runtime_error("No input file specified for preprocessing");
+        }
+        if (getOption("output").empty()) {
+            throw std::runtime_error("No output path specified");
+        }
+    }
+    
+    if (hasFlag("preprocess-batch")) {
+        if (getOption("preprocess-batch").empty()) {
+            throw std::runtime_error("No input directory specified for batch preprocessing");
+        }
+        if (getOption("output").empty()) {
+            throw std::runtime_error("No output directory specified");
+        }
+    }
+    
+    if (hasFlag("adjust-contrast")) {
+        try {
+            double factor = std::stod(getOption("adjust-contrast"));
+            if (factor <= 0.0) {
+                throw std::runtime_error("Contrast factor must be positive");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid contrast adjustment factor");
+        }
+    }
+    
+    if (hasFlag("binarize")) {
+        try {
+            double threshold = std::stod(getOption("binarize"));
+            if (threshold < 0.0 || threshold > 1.0) {
+                throw std::runtime_error("Binarization threshold must be between 0 and 1");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid binarization threshold");
+        }
+    }
+    
+    validateRotationOptions();
+    validateScalingOptions();
+}
+
+void CLI::applyPreprocessingPipeline(const std::string& input_path,
+                                   const std::string& output_path,
+                                   int width,
+                                   int height) const {
+    // Load image using OpenCV
+    cv::Mat image = cv::imread(input_path, cv::IMREAD_GRAYSCALE);
+    if (image.empty()) {
+        throw std::runtime_error("Failed to load image: " + input_path);
+    }
+    
+    // Convert to our format
+    std::vector<double> img_data;
+    img_data.reserve(width * height);
+    for (int i = 0; i < image.rows; ++i) {
+        for (int j = 0; j < image.cols; ++j) {
+            img_data.push_back(image.at<uchar>(i, j) / 255.0);
+        }
+    }
+    
+    preprocessing::ImagePreprocessor preprocessor;
+    
+    // Apply preprocessing steps based on flags
+    if (hasFlag("normalize")) {
+        img_data = preprocessor.normalize(img_data);
+    }
+    if (hasFlag("standardize")) {
+        img_data = preprocessor.standardize(img_data);
+    }
+    if (hasFlag("remove-noise")) {
+        img_data = preprocessor.removeNoise(img_data, width, height);
+    }
+    if (hasFlag("adjust-contrast")) {
+        double factor = std::stod(getOption("adjust-contrast"));
+        img_data = preprocessor.adjustContrast(img_data, factor);
+    }
+    if (hasFlag("sharpen")) {
+        img_data = preprocessor.sharpen(img_data, width, height);
+    }
+    if (hasFlag("binarize")) {
+        double threshold = std::stod(getOption("binarize"));
+        img_data = preprocessor.binarize(img_data, threshold);
+    }
+    
+    // Apply new transformation options
+    if (hasFlag("rotate") || hasFlag("scale")) {
+        double angle = hasFlag("rotate") ? std::stod(getOption("rotate")) : 0.0;
+        double scale = hasFlag("scale") ? std::stod(getOption("scale")) : 1.0;
+        
+        if (hasFlag("rotate") && hasFlag("scale")) {
+            img_data = preprocessor.rotateAndScale(img_data, width, height, angle, scale);
+        } else if (hasFlag("rotate")) {
+            img_data = preprocessor.rotateImage(img_data, width, height, angle);
+        } else {
+            img_data = preprocessor.scaleImage(img_data, width, height, scale);
+        }
+    }
+    
+    // Convert back to OpenCV format
+    cv::Mat processed(height, width, CV_8UC1);
+    for (int i = 0; i < height; ++i) {
+        for (int j = 0; j < width; ++j) {
+            processed.at<uchar>(i, j) = static_cast<uchar>(img_data[i * width + j] * 255);
+        }
+    }
+    
+    // Save processed image
+    if (!cv::imwrite(output_path, processed)) {
+        throw std::runtime_error("Failed to save processed image: " + output_path);
+    }
+}
+
+void CLI::handlePreprocessing() {
+    validatePreprocessingOptions();
+    
+    std::string input_path = getOption("preprocess");
+    std::string output_path = getOption("output");
+    
+    // Load image to get dimensions
+    cv::Mat image = cv::imread(input_path, cv::IMREAD_GRAYSCALE);
+    if (image.empty()) {
+        throw std::runtime_error("Failed to load image: " + input_path);
+    }
+    
+    std::cout << "Processing image: " << input_path << "\n";
+    applyPreprocessingPipeline(input_path, output_path, image.cols, image.rows);
+    std::cout << "Saved processed image to: " << output_path << "\n";
+}
+
+void CLI::handleBatchPreprocessing() {
+    validatePreprocessingOptions();
+    
+    std::string input_dir = getOption("preprocess-batch");
+    std::string output_dir = getOption("output");
+    
+    // Create output directory if it doesn't exist
+    std::filesystem::create_directories(output_dir);
+    
+    int processed_count = 0;
+    for (const auto& entry : std::filesystem::directory_iterator(input_dir)) {
+        if (entry.is_regular_file()) {
+            std::string input_path = entry.path().string();
+            std::string filename = entry.path().filename().string();
+            std::string output_path = (std::filesystem::path(output_dir) / filename).string();
+            
+            try {
+                cv::Mat image = cv::imread(input_path, cv::IMREAD_GRAYSCALE);
+                if (!image.empty()) {
+                    std::cout << "Processing: " << filename << "\n";
+                    applyPreprocessingPipeline(input_path, output_path, image.cols, image.rows);
+                    processed_count++;
+                }
+            } catch (const std::exception& e) {
+                std::cerr << "Warning: Failed to process " << filename << ": " << e.what() << "\n";
+            }
+        }
+    }
+    
+    std::cout << "Processed " << processed_count << " images\n"
+              << "Output directory: " << output_dir << "\n";
+}
+
 void CLI::run() {
     try {
         validateOptions();
@@ -191,6 +402,10 @@ void CLI::run() {
             handleEvaluation();
         } else if (hasFlag("visualize")) {
             handleVisualization();
+        } else if (hasFlag("preprocess")) {
+            handlePreprocessing();
+        } else if (hasFlag("preprocess-batch")) {
+            handleBatchPreprocessing();
         }
     } catch (const std::exception& e) {
         std::cerr << "Error: " << e.what() << "\n";
