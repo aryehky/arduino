@@ -23,9 +23,22 @@ private:
     void handleBatchPrediction();
     void handleEvaluation();
     void handleVisualization();
+    void handlePreprocessing();
+    void handleBatchPreprocessing();
     
     void showHelp() const;
     void validateOptions() const;
+    
+    // Helper methods for preprocessing
+    void validatePreprocessingOptions() const;
+    void applyPreprocessingPipeline(const std::string& input_path, 
+                                  const std::string& output_path,
+                                  int width,
+                                  int height) const;
+    
+    // New preprocessing options
+    void validateRotationOptions() const;
+    void validateScalingOptions() const;
 };
 
 #endif // CLI_H 
