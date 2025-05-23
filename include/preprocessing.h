@@ -43,6 +43,23 @@ public:
         double contrast_factor = 1.2
     );
 
+    // New methods for image transformation
+    std::vector<double> rotateImage(const std::vector<double>& image, 
+                                  int width, 
+                                  int height, 
+                                  double angle_degrees);
+                                  
+    std::vector<double> scaleImage(const std::vector<double>& image,
+                                 int original_width,
+                                 int original_height,
+                                 double scale_factor);
+                                 
+    std::vector<double> rotateAndScale(const std::vector<double>& image,
+                                     int width,
+                                     int height,
+                                     double angle_degrees,
+                                     double scale_factor);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
@@ -59,6 +76,13 @@ private:
         int height,
         int padding
     );
+
+    // Helper methods for transformations
+    std::vector<double> bilinearInterpolation(const std::vector<double>& image,
+                                            int width,
+                                            int height,
+                                            double x,
+                                            double y);
 };
 
 // Validation utilities
