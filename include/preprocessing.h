@@ -60,6 +60,23 @@ public:
                                      double angle_degrees,
                                      double scale_factor);
 
+    // New filtering methods
+    static std::vector<double> gaussianBlur(const std::vector<double>& image, 
+                                          int width, 
+                                          int height, 
+                                          double sigma = 1.0);
+                                          
+    static std::vector<double> edgeDetection(const std::vector<double>& image,
+                                           int width,
+                                           int height,
+                                           bool useSobel = true);
+                                           
+    static std::vector<double> morphologicalOperation(const std::vector<double>& image,
+                                                    int width,
+                                                    int height,
+                                                    const std::string& operation,
+                                                    int kernel_size = 3);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
@@ -83,6 +100,18 @@ private:
                                             int height,
                                             double x,
                                             double y);
+
+    // New helper methods for filtering
+    static std::vector<double> createGaussianKernel(int size, double sigma);
+    static std::vector<double> applySobelOperator(const std::vector<double>& image,
+                                                int width,
+                                                int height,
+                                                bool horizontal);
+    static std::vector<double> applyMorphologicalKernel(const std::vector<double>& image,
+                                                      int width,
+                                                      int height,
+                                                      const std::vector<double>& kernel,
+                                                      const std::string& operation);
 };
 
 // Validation utilities
