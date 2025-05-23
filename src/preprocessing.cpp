@@ -544,4 +544,349 @@ std::vector<double> ImagePreprocessor::morphologicalOperation(const std::vector<
     return applyMorphologicalKernel(image, width, height, kernel, operation);
 }
 
+std::vector<double> ImagePreprocessor::computeLocalThreshold(const std::vector<double>& image,
+                                                           int width,
+                                                           int height,
+                                                           int window_size) {
+    std::vector<double> thresholds(width * height);
+    int half_window = window_size / 2;
+    
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            std::vector<double> window;
+            window.reserve(window_size * window_size);
+            
+            // Collect pixels in window
+            for (int wy = -half_window; wy <= half_window; ++wy) {
+                for (int wx = -half_window; wx <= half_window; ++wx) {
+                    int px = std::clamp(x + wx, 0, width - 1);
+                    int py = std::clamp(y + wy, 0, height - 1);
+                    window.push_back(image[py * width + px]);
+                }
+            }
+            
+            // Compute local threshold (mean of window)
+            thresholds[y * width + x] = std::accumulate(window.begin(), window.end(), 0.0) / window.size();
+        }
+    }
+    
+    return thresholds;
+}
+
+std::vector<double> ImagePreprocessor::thresholdSegmentation(const std::vector<double>& image,
+                                                           double threshold,
+                                                           bool adaptive) {
+    if (image.empty()) {
+        throw std::invalid_argument("Empty image provided");
+    }
+    
+    std::vector<double> segmented(image.size());
+    
+    if (adaptive) {
+        // Assuming square image for simplicity
+        int size = static_cast<int>(std::sqrt(image.size()));
+        auto local_thresholds = computeLocalThreshold(image, size, size, 15);
+        
+        for (size_t i = 0; i < image.size(); ++i) {
+            segmented[i] = image[i] > local_thresholds[i] ? 1.0 : 0.0;
+        }
+    } else {
+        std::transform(image.begin(), image.end(), segmented.begin(),
+                      [threshold](double pixel) {
+                          return pixel > threshold ? 1.0 : 0.0;
+                      });
+    }
+    
+    return segmented;
+}
+
+std::vector<int> ImagePreprocessor::findPeaks(const std::vector<int>& histogram,
+                                            int min_distance) {
+    std::vector<int> peaks;
+    for (size_t i = 1; i < histogram.size() - 1; ++i) {
+        if (histogram[i] > histogram[i-1] && histogram[i] > histogram[i+1]) {
+            // Check if this peak is far enough from previous peaks
+            bool is_far_enough = true;
+            for (int peak : peaks) {
+                if (std::abs(static_cast<int>(i) - peak) < min_distance) {
+                    is_far_enough = false;
+                    break;
+                }
+            }
+            if (is_far_enough) {
+                peaks.push_back(i);
+            }
+        }
+    }
+    return peaks;
+}
+
+std::vector<double> ImagePreprocessor::computeDistanceTransform(const std::vector<double>& image,
+                                                              int width,
+                                                              int height) {
+    std::vector<double> distance(width * height, std::numeric_limits<double>::max());
+    
+    // Forward pass
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            if (image[y * width + x] > 0.5) {
+                distance[y * width + x] = 0;
+            } else {
+                if (x > 0) {
+                    distance[y * width + x] = std::min(distance[y * width + (x-1)] + 1,
+                                                     distance[y * width + x]);
+                }
+                if (y > 0) {
+                    distance[y * width + x] = std::min(distance[(y-1) * width + x] + 1,
+                                                     distance[y * width + x]);
+                }
+            }
+        }
+    }
+    
+    // Backward pass
+    for (int y = height-1; y >= 0; --y) {
+        for (int x = width-1; x >= 0; --x) {
+            if (x < width-1) {
+                distance[y * width + x] = std::min(distance[y * width + (x+1)] + 1,
+                                                 distance[y * width + x]);
+            }
+            if (y < height-1) {
+                distance[y * width + x] = std::min(distance[(y+1) * width + x] + 1,
+                                                 distance[y * width + x]);
+            }
+        }
+    }
+    
+    return distance;
+}
+
+std::vector<double> ImagePreprocessor::watershedSegmentation(const std::vector<double>& image,
+                                                           int width,
+                                                           int height,
+                                                           int min_distance) {
+    // Compute gradient magnitude
+    auto grad_x = applySobelOperator(image, width, height, true);
+    auto grad_y = applySobelOperator(image, width, height, false);
+    
+    std::vector<double> gradient(width * height);
+    for (size_t i = 0; i < gradient.size(); ++i) {
+        gradient[i] = std::sqrt(grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i]);
+    }
+    
+    // Compute distance transform
+    auto distance = computeDistanceTransform(gradient, width, height);
+    
+    // Find peaks in distance transform
+    std::vector<int> histogram(256, 0);
+    for (double d : distance) {
+        int bin = static_cast<int>(std::clamp(d * 255, 0.0, 255.0));
+        histogram[bin]++;
+    }
+    
+    auto peaks = findPeaks(histogram, min_distance);
+    
+    // Create segmentation mask
+    std::vector<double> segmented(width * height, 0.0);
+    for (int peak : peaks) {
+        double threshold = peak / 255.0;
+        for (size_t i = 0; i < segmented.size(); ++i) {
+            if (distance[i] <= threshold) {
+                segmented[i] = 1.0;
+            }
+        }
+    }
+    
+    return segmented;
+}
+
+std::vector<double> ImagePreprocessor::kmeansSegmentation(const std::vector<double>& image,
+                                                        int width,
+                                                        int height,
+                                                        int k,
+                                                        int max_iterations) {
+    if (k < 2) {
+        throw std::invalid_argument("Number of clusters must be at least 2");
+    }
+    
+    // Initialize centroids randomly
+    std::vector<double> centroids(k);
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    for (int i = 0; i < k; ++i) {
+        centroids[i] = dis(gen);
+    }
+    
+    std::vector<double> segmented(image.size());
+    std::vector<int> assignments(image.size());
+    
+    for (int iter = 0; iter < max_iterations; ++iter) {
+        // Assign pixels to nearest centroid
+        for (size_t i = 0; i < image.size(); ++i) {
+            double min_dist = std::numeric_limits<double>::max();
+            int best_cluster = 0;
+            
+            for (int j = 0; j < k; ++j) {
+                double dist = std::abs(image[i] - centroids[j]);
+                if (dist < min_dist) {
+                    min_dist = dist;
+                    best_cluster = j;
+                }
+            }
+            
+            assignments[i] = best_cluster;
+        }
+        
+        // Update centroids
+        std::vector<double> new_centroids(k, 0.0);
+        std::vector<int> counts(k, 0);
+        
+        for (size_t i = 0; i < image.size(); ++i) {
+            new_centroids[assignments[i]] += image[i];
+            counts[assignments[i]]++;
+        }
+        
+        for (int i = 0; i < k; ++i) {
+            if (counts[i] > 0) {
+                centroids[i] = new_centroids[i] / counts[i];
+            }
+        }
+    }
+    
+    // Create segmentation mask
+    for (size_t i = 0; i < segmented.size(); ++i) {
+        segmented[i] = static_cast<double>(assignments[i]) / (k - 1);
+    }
+    
+    return segmented;
+}
+
+HistogramStats ImagePreprocessor::computeHistogramStats(const std::vector<double>& image,
+                                                      int num_bins) {
+    if (image.empty()) {
+        throw std::invalid_argument("Empty image provided");
+    }
+    
+    HistogramStats stats;
+    stats.histogram.resize(num_bins, 0);
+    
+    // Compute histogram
+    for (double pixel : image) {
+        int bin = static_cast<int>(std::clamp(pixel * (num_bins - 1), 0.0, num_bins - 1.0));
+        stats.histogram[bin]++;
+    }
+    
+    // Compute statistics
+    double total_pixels = static_cast<double>(image.size());
+    
+    // Mean
+    stats.mean = std::accumulate(image.begin(), image.end(), 0.0) / total_pixels;
+    
+    // Median
+    std::vector<double> sorted = image;
+    std::sort(sorted.begin(), sorted.end());
+    stats.median = sorted[sorted.size() / 2];
+    
+    // Mode
+    auto max_it = std::max_element(stats.histogram.begin(), stats.histogram.end());
+    stats.mode = static_cast<double>(std::distance(stats.histogram.begin(), max_it)) / (num_bins - 1);
+    
+    // Peak count
+    stats.peak_count = findPeaks(stats.histogram, 5).size();
+    
+    // Entropy
+    stats.entropy = 0.0;
+    for (int count : stats.histogram) {
+        if (count > 0) {
+            double probability = count / total_pixels;
+            stats.entropy -= probability * std::log2(probability);
+        }
+    }
+    
+    return stats;
+}
+
+std::vector<double> ImagePreprocessor::histogramEqualization(const std::vector<double>& image) {
+    if (image.empty()) {
+        throw std::invalid_argument("Empty image provided");
+    }
+    
+    const int num_bins = 256;
+    std::vector<int> histogram(num_bins, 0);
+    
+    // Compute histogram
+    for (double pixel : image) {
+        int bin = static_cast<int>(std::clamp(pixel * (num_bins - 1), 0.0, num_bins - 1.0));
+        histogram[bin]++;
+    }
+    
+    // Compute cumulative distribution function
+    std::vector<double> cdf(num_bins);
+    cdf[0] = static_cast<double>(histogram[0]) / image.size();
+    for (int i = 1; i < num_bins; ++i) {
+        cdf[i] = cdf[i-1] + static_cast<double>(histogram[i]) / image.size();
+    }
+    
+    // Apply equalization
+    std::vector<double> equalized(image.size());
+    for (size_t i = 0; i < image.size(); ++i) {
+        int bin = static_cast<int>(std::clamp(image[i] * (num_bins - 1), 0.0, num_bins - 1.0));
+        equalized[i] = cdf[bin];
+    }
+    
+    return equalized;
+}
+
+std::vector<double> ImagePreprocessor::adaptiveHistogramEqualization(const std::vector<double>& image,
+                                                                   int width,
+                                                                   int height,
+                                                                   int window_size) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    std::vector<double> equalized(width * height);
+    int half_window = window_size / 2;
+    
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            std::vector<double> window;
+            window.reserve(window_size * window_size);
+            
+            // Collect pixels in window
+            for (int wy = -half_window; wy <= half_window; ++wy) {
+                for (int wx = -half_window; wx <= half_window; ++wx) {
+                    int px = std::clamp(x + wx, 0, width - 1);
+                    int py = std::clamp(y + wy, 0, height - 1);
+                    window.push_back(image[py * width + px]);
+                }
+            }
+            
+            // Compute local histogram
+            const int num_bins = 256;
+            std::vector<int> histogram(num_bins, 0);
+            
+            for (double pixel : window) {
+                int bin = static_cast<int>(std::clamp(pixel * (num_bins - 1), 0.0, num_bins - 1.0));
+                histogram[bin]++;
+            }
+            
+            // Compute local CDF
+            std::vector<double> cdf(num_bins);
+            cdf[0] = static_cast<double>(histogram[0]) / window.size();
+            for (int i = 1; i < num_bins; ++i) {
+                cdf[i] = cdf[i-1] + static_cast<double>(histogram[i]) / window.size();
+            }
+            
+            // Apply local equalization
+            int bin = static_cast<int>(std::clamp(image[y * width + x] * (num_bins - 1), 0.0, num_bins - 1.0));
+            equalized[y * width + x] = cdf[bin];
+        }
+    }
+    
+    return equalized;
+}
+
 } // namespace preprocessing 
