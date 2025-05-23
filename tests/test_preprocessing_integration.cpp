@@ -222,4 +222,62 @@ TEST_F(PreprocessingSVMTest, TransformationWithNoise) {
     EXPECT_GT(accuracy, 0.7);
 }
 
+TEST_F(PreprocessingSVMTest, ImageFilteringPipeline) {
+    preprocessing::ImagePreprocessor preprocessor;
+    
+    // Create a test image (simple pattern)
+    std::vector<double> test_image(28 * 28, 0.0);
+    for (int i = 0; i < 28; ++i) {
+        for (int j = 0; j < 28; ++j) {
+            test_image[i * 28 + j] = (i + j) % 2 == 0 ? 1.0 : 0.0;
+        }
+    }
+    
+    // Test Gaussian blur
+    auto blurred = preprocessor.gaussianBlur(test_image, 28, 28, 1.0);
+    EXPECT_EQ(blurred.size(), test_image.size());
+    
+    // Test edge detection
+    auto edges_sobel = preprocessor.edgeDetection(test_image, 28, 28, true);
+    auto edges_laplacian = preprocessor.edgeDetection(test_image, 28, 28, false);
+    EXPECT_EQ(edges_sobel.size(), test_image.size());
+    EXPECT_EQ(edges_laplacian.size(), test_image.size());
+    
+    // Test morphological operations
+    auto eroded = preprocessor.morphologicalOperation(test_image, 28, 28, "erode", 3);
+    auto dilated = preprocessor.morphologicalOperation(test_image, 28, 28, "dilate", 3);
+    EXPECT_EQ(eroded.size(), test_image.size());
+    EXPECT_EQ(dilated.size(), test_image.size());
+}
+
+TEST_F(PreprocessingSVMTest, FilteringWithNoise) {
+    preprocessing::ImagePreprocessor preprocessor;
+    
+    // Add noise to training data
+    auto noisy_features = training_features;
+    addNoise(noisy_features, 0.1);
+    
+    // Apply filtering to noisy data
+    std::vector<std::vector<double>> filtered_features;
+    filtered_features.reserve(noisy_features.size());
+    
+    for (const auto& image : noisy_features) {
+        auto filtered = preprocessor.gaussianBlur(image, 28, 28, 0.8);
+        filtered = preprocessor.edgeDetection(filtered, 28, 28, true);
+        filtered = preprocessor.morphologicalOperation(filtered, 28, 28, "dilate", 3);
+        filtered = preprocessor.normalize(filtered);
+        filtered_features.push_back(filtered);
+    }
+    
+    // Train and evaluate
+    SVM svm;
+    svm.train(filtered_features, training_labels);
+    
+    auto confusion_matrix = svm.getConfusionMatrix(test_features, test_labels, 10);
+    double accuracy = confusion_matrix.getAccuracy();
+    
+    // Should maintain reasonable accuracy with filtering
+    EXPECT_GT(accuracy, 0.7);
+}
+
 } // namespace 
