@@ -55,15 +55,30 @@ else()
     target_compile_options(digit_recognition PRIVATE -Wall -Wextra -Wpedantic)
 endif()
 
-# Create test executable
+# Create test executables
 set(TEST_SOURCES
     tests/test_preprocessing.cpp
     src/preprocessing.cpp
 )
 
+set(INTEGRATION_TEST_SOURCES
+    tests/test_preprocessing_integration.cpp
+    src/preprocessing.cpp
+    src/svm.cpp
+    src/dataset.cpp
+    src/utils.cpp
+)
+
 add_executable(unit_tests ${TEST_SOURCES})
+add_executable(integration_tests ${INTEGRATION_TEST_SOURCES})
 
 target_include_directories(unit_tests PRIVATE
+    ${CMAKE_SOURCE_DIR}/include
+    ${LIBSVM_INCLUDE_DIR}
+    ${OpenCV_INCLUDE_DIRS}
+)
+
+target_include_directories(integration_tests PRIVATE
     ${CMAKE_SOURCE_DIR}/include
     ${LIBSVM_INCLUDE_DIR}
     ${OpenCV_INCLUDE_DIRS}
@@ -75,13 +90,23 @@ target_link_libraries(unit_tests PRIVATE
     ${OpenCV_LIBS}
 )
 
+target_link_libraries(integration_tests PRIVATE
+    GTest::gtest_main
+    ${LIBSVM_LIBRARY}
+    ${OpenCV_LIBS}
+)
+
 # Register tests
 include(GoogleTest)
 gtest_discover_tests(unit_tests)
+gtest_discover_tests(integration_tests)
 
 # Install rules
 install(TARGETS digit_recognition DESTINATION bin)
-install(FILES scripts/download_mnist.sh DESTINATION bin
-        PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
-                   GROUP_READ GROUP_EXECUTE
-                   WORLD_READ WORLD_EXECUTE) 
+install(FILES 
+    scripts/download_mnist.sh
+    scripts/preprocess_examples.sh
+    DESTINATION bin
+    PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
+                GROUP_READ GROUP_EXECUTE
+                WORLD_READ WORLD_EXECUTE) 
