@@ -14,6 +14,15 @@ struct ImageStats {
     double max;
 };
 
+struct HistogramStats {
+    std::vector<int> histogram;
+    double entropy;
+    double mean;
+    double median;
+    double mode;
+    int peak_count;
+};
+
 class ImagePreprocessor {
 public:
     // Image loading and conversion
@@ -77,6 +86,33 @@ public:
                                                     const std::string& operation,
                                                     int kernel_size = 3);
 
+    // New segmentation methods
+    static std::vector<double> thresholdSegmentation(const std::vector<double>& image,
+                                                   double threshold,
+                                                   bool adaptive = false);
+                                                   
+    static std::vector<double> watershedSegmentation(const std::vector<double>& image,
+                                                   int width,
+                                                   int height,
+                                                   int min_distance = 10);
+                                                   
+    static std::vector<double> kmeansSegmentation(const std::vector<double>& image,
+                                                int width,
+                                                int height,
+                                                int k = 2,
+                                                int max_iterations = 100);
+    
+    // New histogram analysis methods
+    static HistogramStats computeHistogramStats(const std::vector<double>& image,
+                                              int num_bins = 256);
+                                              
+    static std::vector<double> histogramEqualization(const std::vector<double>& image);
+    
+    static std::vector<double> adaptiveHistogramEqualization(const std::vector<double>& image,
+                                                           int width,
+                                                           int height,
+                                                           int window_size = 8);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
@@ -112,6 +148,19 @@ private:
                                                       int height,
                                                       const std::vector<double>& kernel,
                                                       const std::string& operation);
+
+    // New helper methods for segmentation
+    static std::vector<double> computeLocalThreshold(const std::vector<double>& image,
+                                                   int width,
+                                                   int height,
+                                                   int window_size);
+                                                   
+    static std::vector<int> findPeaks(const std::vector<int>& histogram,
+                                    int min_distance);
+                                    
+    static std::vector<double> computeDistanceTransform(const std::vector<double>& image,
+                                                      int width,
+                                                      int height);
 };
 
 // Validation utilities
