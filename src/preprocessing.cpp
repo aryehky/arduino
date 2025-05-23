@@ -401,4 +401,147 @@ std::vector<double> ImagePreprocessor::bilinearInterpolation(const std::vector<d
     return std::clamp(interpolated, 0.0, 1.0);
 }
 
+std::vector<double> ImagePreprocessor::createGaussianKernel(int size, double sigma) {
+    std::vector<double> kernel(size * size);
+    double sum = 0.0;
+    int center = size / 2;
+    
+    for (int y = 0; y < size; ++y) {
+        for (int x = 0; x < size; ++x) {
+            double dx = x - center;
+            double dy = y - center;
+            double value = std::exp(-(dx * dx + dy * dy) / (2 * sigma * sigma));
+            kernel[y * size + x] = value;
+            sum += value;
+        }
+    }
+    
+    // Normalize kernel
+    for (double& value : kernel) {
+        value /= sum;
+    }
+    
+    return kernel;
+}
+
+std::vector<double> ImagePreprocessor::gaussianBlur(const std::vector<double>& image,
+                                                  int width,
+                                                  int height,
+                                                  double sigma) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    int kernel_size = static_cast<int>(std::ceil(6 * sigma)) | 1; // Ensure odd size
+    auto kernel = createGaussianKernel(kernel_size, sigma);
+    
+    return applyKernel(image, kernel, width, height, kernel_size);
+}
+
+std::vector<double> ImagePreprocessor::applySobelOperator(const std::vector<double>& image,
+                                                        int width,
+                                                        int height,
+                                                        bool horizontal) {
+    const std::vector<double> sobel_x = {
+        -1.0, 0.0, 1.0,
+        -2.0, 0.0, 2.0,
+        -1.0, 0.0, 1.0
+    };
+    
+    const std::vector<double> sobel_y = {
+        -1.0, -2.0, -1.0,
+         0.0,  0.0,  0.0,
+         1.0,  2.0,  1.0
+    };
+    
+    return applyKernel(image, horizontal ? sobel_x : sobel_y, width, height, 3);
+}
+
+std::vector<double> ImagePreprocessor::edgeDetection(const std::vector<double>& image,
+                                                   int width,
+                                                   int height,
+                                                   bool useSobel) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    if (useSobel) {
+        auto grad_x = applySobelOperator(image, width, height, true);
+        auto grad_y = applySobelOperator(image, width, height, false);
+        
+        // Combine gradients
+        std::vector<double> edges(width * height);
+        for (size_t i = 0; i < edges.size(); ++i) {
+            edges[i] = std::sqrt(grad_x[i] * grad_x[i] + grad_y[i] * grad_y[i]);
+        }
+        
+        // Normalize
+        return normalize(edges);
+    } else {
+        // Simple edge detection using Laplacian
+        const std::vector<double> laplacian = {
+            0.0,  1.0, 0.0,
+            1.0, -4.0, 1.0,
+            0.0,  1.0, 0.0
+        };
+        
+        auto edges = applyKernel(image, laplacian, width, height, 3);
+        return normalize(edges);
+    }
+}
+
+std::vector<double> ImagePreprocessor::applyMorphologicalKernel(const std::vector<double>& image,
+                                                              int width,
+                                                              int height,
+                                                              const std::vector<double>& kernel,
+                                                              const std::string& operation) {
+    int kernel_size = static_cast<int>(std::sqrt(kernel.size()));
+    auto padded = padImage(image, width, height, kernel_size / 2);
+    std::vector<double> result(width * height);
+    
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            std::vector<double> window;
+            window.reserve(kernel_size * kernel_size);
+            
+            for (int ky = 0; ky < kernel_size; ++ky) {
+                for (int kx = 0; kx < kernel_size; ++kx) {
+                    int px = x + kx;
+                    int py = y + ky;
+                    window.push_back(padded[py * (width + kernel_size - 1) + px]);
+                }
+            }
+            
+            if (operation == "erode") {
+                result[y * width + x] = *std::min_element(window.begin(), window.end());
+            } else if (operation == "dilate") {
+                result[y * width + x] = *std::max_element(window.begin(), window.end());
+            } else {
+                throw std::invalid_argument("Invalid morphological operation");
+            }
+        }
+    }
+    
+    return result;
+}
+
+std::vector<double> ImagePreprocessor::morphologicalOperation(const std::vector<double>& image,
+                                                            int width,
+                                                            int height,
+                                                            const std::string& operation,
+                                                            int kernel_size) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    if (kernel_size % 2 == 0) {
+        throw std::invalid_argument("Kernel size must be odd");
+    }
+    
+    // Create a simple square kernel
+    std::vector<double> kernel(kernel_size * kernel_size, 1.0);
+    
+    return applyMorphologicalKernel(image, width, height, kernel, operation);
+}
+
 } // namespace preprocessing 
