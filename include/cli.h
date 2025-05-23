@@ -39,6 +39,11 @@ private:
     // New preprocessing options
     void validateRotationOptions() const;
     void validateScalingOptions() const;
+    
+    // New filtering options
+    void validateFilteringOptions() const;
+    void validateGaussianOptions() const;
+    void validateMorphologicalOptions() const;
 };
 
 #endif // CLI_H 
