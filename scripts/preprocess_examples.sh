@@ -67,4 +67,36 @@ echo -e "\n8. Combined rotation and scaling"
                    --scale 1.2 \
                    --output examples/output/digit_transformed.png
 
+# Gaussian blur example
+echo -e "\n9. Gaussian blur example"
+./digit_recognition --preprocess examples/input/digit.png \
+                   --normalize \
+                   --gaussian-blur 1.5 \
+                   --output examples/output/digit_blurred.png
+
+# Edge detection example
+echo -e "\n10. Edge detection example"
+./digit_recognition --preprocess examples/input/digit.png \
+                   --normalize \
+                   --edge-detection sobel \
+                   --output examples/output/digit_edges.png
+
+# Morphological operations example
+echo -e "\n11. Morphological operations example"
+./digit_recognition --preprocess examples/input/digit.png \
+                   --normalize \
+                   --morphological erode \
+                   --kernel-size 3 \
+                   --output examples/output/digit_eroded.png
+
+# Combined filtering example
+echo -e "\n12. Combined filtering example"
+./digit_recognition --preprocess examples/input/digit.png \
+                   --normalize \
+                   --gaussian-blur 0.8 \
+                   --edge-detection laplacian \
+                   --morphological dilate \
+                   --kernel-size 5 \
+                   --output examples/output/digit_filtered.png
+
 echo -e "\nAll examples completed. Check examples/output/ for results." 
