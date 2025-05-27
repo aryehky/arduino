@@ -72,6 +72,12 @@ void CLI::showHelp() const {
               << "  --edge-detection [sobel|laplacian] Apply edge detection\n"
               << "  --morphological [erode|dilate] Apply morphological operation\n"
               << "  --kernel-size SIZE   Specify kernel size for morphological operations\n"
+              << "  --threshold VALUE     Apply threshold segmentation\n"
+              << "  --adaptive-threshold  Use adaptive thresholding\n"
+              << "  --watershed DISTANCE  Apply watershed segmentation\n"
+              << "  --kmeans K           Apply k-means segmentation\n"
+              << "  --histogram-equalize Apply histogram equalization\n"
+              << "  --adaptive-equalize WINDOW Apply adaptive histogram equalization\n"
               << "  --help               Show this help message\n";
 }
 
@@ -259,6 +265,60 @@ void CLI::validateFilteringOptions() const {
     validateMorphologicalOptions();
 }
 
+void CLI::validateSegmentationOptions() const {
+    if (hasFlag("threshold")) {
+        try {
+            double threshold = std::stod(getOption("threshold"));
+            if (threshold < 0.0 || threshold > 1.0) {
+                throw std::runtime_error("Threshold must be between 0 and 1");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid threshold value");
+        }
+    }
+    
+    if (hasFlag("watershed")) {
+        try {
+            int min_distance = std::stoi(getOption("watershed"));
+            if (min_distance <= 0) {
+                throw std::runtime_error("Minimum distance must be positive");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid watershed minimum distance");
+        }
+    }
+}
+
+void CLI::validateHistogramOptions() const {
+    if (hasFlag("histogram-equalize") && hasFlag("adaptive-equalize")) {
+        throw std::runtime_error("Cannot use both histogram equalization methods simultaneously");
+    }
+    
+    if (hasFlag("adaptive-equalize")) {
+        try {
+            int window_size = std::stoi(getOption("adaptive-equalize"));
+            if (window_size <= 0 || window_size % 2 == 0) {
+                throw std::runtime_error("Window size must be a positive odd number");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid adaptive equalization window size");
+        }
+    }
+}
+
+void CLI::validateKmeansOptions() const {
+    if (hasFlag("kmeans")) {
+        try {
+            int k = std::stoi(getOption("kmeans"));
+            if (k < 2) {
+                throw std::runtime_error("Number of clusters must be at least 2");
+            }
+        } catch (const std::exception&) {
+            throw std::runtime_error("Invalid number of clusters");
+        }
+    }
+}
+
 void CLI::validatePreprocessingOptions() const {
     if (hasFlag("preprocess")) {
         if (getOption("preprocess").empty()) {
@@ -303,6 +363,9 @@ void CLI::validatePreprocessingOptions() const {
     validateRotationOptions();
     validateScalingOptions();
     validateFilteringOptions();
+    validateSegmentationOptions();
+    validateHistogramOptions();
+    validateKmeansOptions();
 }
 
 void CLI::applyPreprocessingPipeline(const std::string& input_path,
@@ -379,6 +442,33 @@ void CLI::applyPreprocessingPipeline(const std::string& input_path,
                          std::stoi(getOption("kernel-size")) : 3;
         img_data = preprocessor.morphologicalOperation(img_data, width, height, 
                                                      operation, kernel_size);
+    }
+    
+    // Apply segmentation operations
+    if (hasFlag("threshold")) {
+        double threshold = std::stod(getOption("threshold"));
+        bool adaptive = hasFlag("adaptive-threshold");
+        img_data = preprocessor.thresholdSegmentation(img_data, threshold, adaptive);
+    }
+    
+    if (hasFlag("watershed")) {
+        int min_distance = std::stoi(getOption("watershed"));
+        img_data = preprocessor.watershedSegmentation(img_data, width, height, min_distance);
+    }
+    
+    if (hasFlag("kmeans")) {
+        int k = std::stoi(getOption("kmeans"));
+        img_data = preprocessor.kmeansSegmentation(img_data, width, height, k);
+    }
+    
+    // Apply histogram operations
+    if (hasFlag("histogram-equalize")) {
+        img_data = preprocessor.histogramEqualization(img_data);
+    }
+    
+    if (hasFlag("adaptive-equalize")) {
+        int window_size = std::stoi(getOption("adaptive-equalize"));
+        img_data = preprocessor.adaptiveHistogramEqualization(img_data, width, height, window_size);
     }
     
     // Convert back to OpenCV format

@@ -280,4 +280,96 @@ TEST_F(PreprocessingSVMTest, FilteringWithNoise) {
     EXPECT_GT(accuracy, 0.7);
 }
 
+TEST_CASE("ImageSegmentationPipeline", "[preprocessing]") {
+    // Create a simple test image
+    std::vector<double> img_data(100, 0.0);
+    for (int i = 0; i < 100; ++i) {
+        img_data[i] = (i % 10) / 10.0;  // Create some patterns
+    }
+    
+    // Test threshold segmentation
+    auto thresholded = preprocessing::ImagePreprocessor::thresholdSegmentation(img_data, 0.5, false);
+    REQUIRE(thresholded.size() == img_data.size());
+    
+    // Test adaptive threshold
+    auto adaptive_thresholded = preprocessing::ImagePreprocessor::thresholdSegmentation(img_data, 0.5, true);
+    REQUIRE(adaptive_thresholded.size() == img_data.size());
+    
+    // Test watershed segmentation
+    auto watershed = preprocessing::ImagePreprocessor::watershedSegmentation(img_data, 10, 10, 5);
+    REQUIRE(watershed.size() == img_data.size());
+    
+    // Test k-means segmentation
+    auto kmeans = preprocessing::ImagePreprocessor::kmeansSegmentation(img_data, 10, 10, 3);
+    REQUIRE(kmeans.size() == img_data.size());
+}
+
+TEST_CASE("HistogramAnalysis", "[preprocessing]") {
+    // Create a test image with known histogram properties
+    std::vector<double> img_data(100, 0.0);
+    for (int i = 0; i < 100; ++i) {
+        img_data[i] = (i % 4) / 4.0;  // Create 4 distinct levels
+    }
+    
+    // Test histogram statistics
+    auto stats = preprocessing::ImagePreprocessor::computeHistogramStats(img_data);
+    REQUIRE(stats.mean > 0.0);
+    REQUIRE(stats.median > 0.0);
+    REQUIRE(stats.entropy > 0.0);
+    REQUIRE(stats.peak_count >= 4);  // Should detect the 4 distinct levels
+    
+    // Test histogram equalization
+    auto equalized = preprocessing::ImagePreprocessor::histogramEqualization(img_data);
+    REQUIRE(equalized.size() == img_data.size());
+    
+    // Test adaptive histogram equalization
+    auto adaptive_equalized = preprocessing::ImagePreprocessor::adaptiveHistogramEqualization(img_data, 10, 10, 5);
+    REQUIRE(adaptive_equalized.size() == img_data.size());
+}
+
+TEST_CASE("SegmentationWithNoise", "[preprocessing]") {
+    // Create training data
+    std::vector<std::vector<double>> training_data;
+    std::vector<int> labels;
+    
+    // Add some noisy digits
+    for (int digit = 0; digit < 10; ++digit) {
+        for (int i = 0; i < 10; ++i) {
+            std::vector<double> img_data(100, 0.0);
+            // Add digit pattern
+            for (int j = 0; j < 100; ++j) {
+                img_data[j] = (j % 10 == digit) ? 0.8 : 0.2;
+            }
+            // Add noise
+            for (int j = 0; j < 100; ++j) {
+                img_data[j] += (rand() % 100) / 1000.0;
+            }
+            training_data.push_back(img_data);
+            labels.push_back(digit);
+        }
+    }
+    
+    // Apply segmentation to noisy images
+    for (auto& img : training_data) {
+        img = preprocessing::ImagePreprocessor::thresholdSegmentation(img, 0.5, true);
+        img = preprocessing::ImagePreprocessor::histogramEqualization(img);
+    }
+    
+    // Train SVM
+    SVM svm;
+    svm.train(training_data, labels);
+    
+    // Test accuracy
+    int correct = 0;
+    for (size_t i = 0; i < training_data.size(); ++i) {
+        int prediction = svm.predict(training_data[i]);
+        if (prediction == labels[i]) {
+            correct++;
+        }
+    }
+    
+    double accuracy = static_cast<double>(correct) / training_data.size();
+    REQUIRE(accuracy > 0.7);  // Should maintain good accuracy after segmentation
+}
+
 } // namespace 

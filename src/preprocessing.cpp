@@ -889,4 +889,168 @@ std::vector<double> ImagePreprocessor::adaptiveHistogramEqualization(const std::
     return equalized;
 }
 
+std::vector<double> ImagePreprocessor::applyCLAHE(const std::vector<double>& image,
+                                                int width,
+                                                int height,
+                                                int window_size,
+                                                double clip_limit) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    if (window_size < 2 || window_size % 2 == 0) {
+        throw std::invalid_argument("Window size must be odd and >= 3");
+    }
+    if (clip_limit <= 0.0) {
+        throw std::invalid_argument("Clip limit must be positive");
+    }
+
+    std::vector<double> result(width * height);
+    const int half_window = window_size / 2;
+    const int num_bins = 256;
+
+    // Process each window
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            // Create histogram for local window
+            std::vector<int> histogram(num_bins, 0);
+            int valid_pixels = 0;
+
+            for (int wy = -half_window; wy <= half_window; ++wy) {
+                for (int wx = -half_window; wx <= half_window; ++wx) {
+                    int nx = x + wx;
+                    int ny = y + wy;
+
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        int bin = static_cast<int>(image[ny * width + nx] * (num_bins - 1));
+                        histogram[bin]++;
+                        valid_pixels++;
+                    }
+                }
+            }
+
+            // Clip histogram
+            int excess = 0;
+            for (int& count : histogram) {
+                if (count > clip_limit) {
+                    excess += count - clip_limit;
+                    count = static_cast<int>(clip_limit);
+                }
+            }
+
+            // Redistribute excess
+            int increment = excess / num_bins;
+            int remainder = excess % num_bins;
+            for (int& count : histogram) {
+                count += increment;
+                if (remainder > 0) {
+                    count++;
+                    remainder--;
+                }
+            }
+
+            // Calculate CDF
+            std::vector<double> cdf(num_bins);
+            cdf[0] = static_cast<double>(histogram[0]) / valid_pixels;
+            for (int i = 1; i < num_bins; ++i) {
+                cdf[i] = cdf[i-1] + static_cast<double>(histogram[i]) / valid_pixels;
+            }
+
+            // Apply transformation
+            int bin = static_cast<int>(image[y * width + x] * (num_bins - 1));
+            result[y * width + x] = cdf[bin];
+        }
+    }
+
+    return result;
+}
+
+std::vector<double> ImagePreprocessor::applyBilateralFilter(const std::vector<double>& image,
+                                                          int width,
+                                                          int height,
+                                                          double sigma_space,
+                                                          double sigma_color) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    if (sigma_space <= 0.0 || sigma_color <= 0.0) {
+        throw std::invalid_argument("Sigma values must be positive");
+    }
+
+    std::vector<double> result(width * height);
+    const int window_size = static_cast<int>(6 * sigma_space);
+    const double sigma_space_sq = 2 * sigma_space * sigma_space;
+    const double sigma_color_sq = 2 * sigma_color * sigma_color;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            double sum = 0.0;
+            double weight_sum = 0.0;
+            double center_pixel = image[y * width + x];
+
+            for (int wy = -window_size; wy <= window_size; ++wy) {
+                for (int wx = -window_size; wx <= window_size; ++wx) {
+                    int nx = x + wx;
+                    int ny = y + wy;
+
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        double pixel = image[ny * width + nx];
+                        double space_weight = std::exp(-(wx*wx + wy*wy) / sigma_space_sq);
+                        double color_weight = std::exp(-std::pow(pixel - center_pixel, 2) / sigma_color_sq);
+                        double weight = space_weight * color_weight;
+
+                        sum += weight * pixel;
+                        weight_sum += weight;
+                    }
+                }
+            }
+
+            result[y * width + x] = sum / weight_sum;
+        }
+    }
+
+    return result;
+}
+
+std::vector<double> ImagePreprocessor::morphologicalOperation(const std::vector<double>& image,
+                                                            int width,
+                                                            int height,
+                                                            int kernel_size,
+                                                            bool is_dilation) {
+    if (!validateImageDimensions(image, width, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    if (kernel_size < 3 || kernel_size % 2 == 0) {
+        throw std::invalid_argument("Kernel size must be odd and >= 3");
+    }
+
+    std::vector<double> result(width * height);
+    const int half_kernel = kernel_size / 2;
+
+    for (int y = 0; y < height; ++y) {
+        for (int x = 0; x < width; ++x) {
+            double value = is_dilation ? 0.0 : 1.0;
+
+            for (int ky = -half_kernel; ky <= half_kernel; ++ky) {
+                for (int kx = -half_kernel; kx <= half_kernel; ++kx) {
+                    int nx = x + kx;
+                    int ny = y + ky;
+
+                    if (nx >= 0 && nx < width && ny >= 0 && ny < height) {
+                        double pixel = image[ny * width + nx];
+                        if (is_dilation) {
+                            value = std::max(value, pixel);
+                        } else {
+                            value = std::min(value, pixel);
+                        }
+                    }
+                }
+            }
+
+            result[y * width + x] = value;
+        }
+    }
+
+    return result;
+}
+
 } // namespace preprocessing 
