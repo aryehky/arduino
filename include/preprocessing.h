@@ -113,6 +113,25 @@ public:
                                                            int height,
                                                            int window_size = 8);
 
+    // New advanced preprocessing methods
+    static std::vector<double> applyCLAHE(const std::vector<double>& image,
+                                        int width,
+                                        int height,
+                                        int window_size = 8,
+                                        double clip_limit = 2.0);
+                                        
+    static std::vector<double> applyBilateralFilter(const std::vector<double>& image,
+                                                  int width,
+                                                  int height,
+                                                  double sigma_space = 3.0,
+                                                  double sigma_color = 0.1);
+                                                  
+    static std::vector<double> morphologicalOperation(const std::vector<double>& image,
+                                                    int width,
+                                                    int height,
+                                                    int kernel_size = 3,
+                                                    bool is_dilation = true);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(

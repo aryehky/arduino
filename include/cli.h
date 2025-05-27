@@ -44,6 +44,11 @@ private:
     void validateFilteringOptions() const;
     void validateGaussianOptions() const;
     void validateMorphologicalOptions() const;
+
+    // New segmentation and histogram options
+    void validateSegmentationOptions() const;
+    void validateHistogramOptions() const;
+    void validateKmeansOptions() const;
 };
 
 #endif // CLI_H 

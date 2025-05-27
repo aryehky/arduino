@@ -99,4 +99,40 @@ echo -e "\n12. Combined filtering example"
                    --kernel-size 5 \
                    --output examples/output/digit_filtered.png
 
-echo -e "\nAll examples completed. Check examples/output/ for results." 
+# Create output directory
+mkdir -p output
+
+# Example 1: Basic threshold segmentation
+echo "Running threshold segmentation example..."
+./digit_recognition --input input/digit1.png --normalize --threshold 0.5 --output output/threshold.png
+
+# Example 2: Adaptive threshold segmentation
+echo "Running adaptive threshold segmentation example..."
+./digit_recognition --input input/digit2.png --normalize --threshold 0.5 --adaptive-threshold --output output/adaptive_threshold.png
+
+# Example 3: Watershed segmentation
+echo "Running watershed segmentation example..."
+./digit_recognition --input input/digit3.png --normalize --watershed 10 --output output/watershed.png
+
+# Example 4: K-means segmentation
+echo "Running k-means segmentation example..."
+./digit_recognition --input input/digit4.png --normalize --kmeans 3 --output output/kmeans.png
+
+# Example 5: Histogram equalization
+echo "Running histogram equalization example..."
+./digit_recognition --input input/digit5.png --normalize --histogram-equalize --output output/histogram_equalized.png
+
+# Example 6: Adaptive histogram equalization
+echo "Running adaptive histogram equalization example..."
+./digit_recognition --input input/digit6.png --normalize --adaptive-equalize 15 --output output/adaptive_equalized.png
+
+# Example 7: Combined segmentation and histogram pipeline
+echo "Running combined segmentation and histogram pipeline example..."
+./digit_recognition --input input/digit7.png \
+    --normalize \
+    --threshold 0.5 \
+    --adaptive-threshold \
+    --histogram-equalize \
+    --output output/combined_pipeline.png
+
+echo "All examples completed. Check the output directory for results." 
