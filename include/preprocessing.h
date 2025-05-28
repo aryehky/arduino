@@ -132,6 +132,34 @@ public:
                                                     int kernel_size = 3,
                                                     bool is_dilation = true);
 
+    // New frequency domain operations
+    static std::vector<double> applyFFT(const std::vector<double>& image,
+                                      int width,
+                                      int height);
+                                      
+    static std::vector<double> applyIFFT(const std::vector<double>& fft_image,
+                                       int width,
+                                       int height);
+                                       
+    static std::vector<double> frequencyFilter(const std::vector<double>& image,
+                                             int width,
+                                             int height,
+                                             const std::string& filter_type,
+                                             double cutoff_frequency);
+
+    // New color space conversion methods
+    static std::vector<double> rgbToGrayscale(const std::vector<double>& rgb_image,
+                                            int width,
+                                            int height);
+                                            
+    static std::vector<double> rgbToHSV(const std::vector<double>& rgb_image,
+                                      int width,
+                                      int height);
+                                      
+    static std::vector<double> hsvToRGB(const std::vector<double>& hsv_image,
+                                      int width,
+                                      int height);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
