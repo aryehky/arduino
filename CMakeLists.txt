@@ -30,6 +30,7 @@ set(SOURCES
     src/utils.cpp
     src/cli.cpp
     src/preprocessing.cpp
+    src/preprocessing_advanced.cpp
 )
 
 # Create main executable
@@ -58,7 +59,7 @@ endif()
 # Create test executables
 set(TEST_SOURCES
     tests/test_preprocessing.cpp
-    src/preprocessing.cpp
+    tests/test_preprocessing_advanced.cpp
 )
 
 set(INTEGRATION_TEST_SOURCES
@@ -109,4 +110,27 @@ install(FILES
     DESTINATION bin
     PERMISSIONS OWNER_READ OWNER_WRITE OWNER_EXECUTE
                 GROUP_READ GROUP_EXECUTE
-                WORLD_READ WORLD_EXECUTE) 
+                WORLD_READ WORLD_EXECUTE)
+
+# Add header files
+set(HEADERS
+    include/preprocessing.h
+)
+
+# Create library
+add_library(preprocessing STATIC ${SOURCES} ${HEADERS})
+target_include_directories(preprocessing PUBLIC include)
+
+# Add tests
+set(TEST_SOURCES
+    tests/test_preprocessing.cpp
+    tests/test_preprocessing_advanced.cpp
+)
+
+# Create test executable
+add_executable(run_tests ${TEST_SOURCES})
+target_link_libraries(run_tests preprocessing ${GTEST_LIBRARIES} pthread)
+
+# Enable testing
+enable_testing()
+add_test(NAME run_tests COMMAND run_tests) 
