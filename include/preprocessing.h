@@ -160,6 +160,52 @@ public:
                                       int width,
                                       int height);
 
+    // New texture analysis methods
+    static std::vector<double> computeLocalBinaryPattern(const std::vector<double>& image,
+                                                       int width,
+                                                       int height,
+                                                       int radius = 1);
+                                                       
+    static std::vector<double> computeGLCM(const std::vector<double>& image,
+                                         int width,
+                                         int height,
+                                         int distance = 1,
+                                         int angle = 0);
+                                         
+    static std::vector<double> computeHaralickFeatures(const std::vector<double>& image,
+                                                     int width,
+                                                     int height);
+
+    // New feature detection methods
+    static std::vector<std::pair<int, int>> detectCorners(const std::vector<double>& image,
+                                                         int width,
+                                                         int height,
+                                                         double threshold = 0.01);
+                                                         
+    static std::vector<std::pair<int, int>> detectBlobs(const std::vector<double>& image,
+                                                       int width,
+                                                       int height,
+                                                       double min_sigma = 1.0,
+                                                       double max_sigma = 3.0);
+                                                       
+    static std::vector<std::pair<int, int>> detectEdges(const std::vector<double>& image,
+                                                       int width,
+                                                       int height,
+                                                       double low_threshold = 0.1,
+                                                       double high_threshold = 0.3);
+
+    // New image registration methods
+    static std::pair<double, double> computeImageAlignment(const std::vector<double>& source,
+                                                         const std::vector<double>& target,
+                                                         int width,
+                                                         int height);
+                                                         
+    static std::vector<double> registerImages(const std::vector<double>& source,
+                                            const std::vector<double>& target,
+                                            int width,
+                                            int height,
+                                            int max_iterations = 100);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
@@ -208,6 +254,30 @@ private:
     static std::vector<double> computeDistanceTransform(const std::vector<double>& image,
                                                       int width,
                                                       int height);
+
+    // New helper methods for texture analysis
+    static std::vector<double> computeGLCMFeatures(const std::vector<std::vector<int>>& glcm);
+    static double computeHaralickContrast(const std::vector<std::vector<int>>& glcm);
+    static double computeHaralickEnergy(const std::vector<std::vector<int>>& glcm);
+    static double computeHaralickCorrelation(const std::vector<std::vector<int>>& glcm);
+    
+    // New helper methods for feature detection
+    static std::vector<double> computeHarrisResponse(const std::vector<double>& image,
+                                                   int width,
+                                                   int height);
+    static std::vector<double> computeLaplacianOfGaussian(const std::vector<double>& image,
+                                                        int width,
+                                                        int height,
+                                                        double sigma);
+                                                        
+    // New helper methods for image registration
+    static std::vector<double> computeGradient(const std::vector<double>& image,
+                                             int width,
+                                             int height);
+    static double computeMutualInformation(const std::vector<double>& source,
+                                         const std::vector<double>& target,
+                                         int width,
+                                         int height);
 };
 
 // Validation utilities
