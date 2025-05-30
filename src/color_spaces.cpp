@@ -566,4 +566,144 @@ std::vector<double> ColorSpaces::colorCorrection(const std::vector<double>& imag
     return result;
 }
 
+std::vector<double> ColorSpaces::computeColorHistogram(const std::vector<double>& image,
+                                                     int width,
+                                                     int height,
+                                                     int num_bins) {
+    if (!validateImageDimensions(image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    if (num_bins < 2 || num_bins > 256) {
+        throw std::invalid_argument("Number of bins must be between 2 and 256");
+    }
+    
+    // Initialize histogram for each channel
+    std::vector<double> histogram(num_bins * 3, 0.0);
+    double bin_size = 1.0 / (num_bins - 1);
+    
+    // Compute histogram
+    for (int i = 0; i < width * height; i++) {
+        for (int c = 0; c < 3; c++) {
+            int bin = static_cast<int>(image[i * 3 + c] / bin_size);
+            bin = std::min(bin, num_bins - 1);
+            histogram[c * num_bins + bin] += 1.0;
+        }
+    }
+    
+    // Normalize histogram
+    double total_pixels = width * height;
+    for (int i = 0; i < num_bins * 3; i++) {
+        histogram[i] /= total_pixels;
+    }
+    
+    return histogram;
+}
+
+std::vector<double> ColorSpaces::computeDominantColors(const std::vector<double>& image,
+                                                     int width,
+                                                     int height,
+                                                     int num_colors) {
+    if (!validateImageDimensions(image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    if (num_colors < 1 || num_colors > 256) {
+        throw std::invalid_argument("Number of colors must be between 1 and 256");
+    }
+    
+    // Convert image to LAB color space for better color clustering
+    auto lab_image = rgbToLab(image, width, height);
+    
+    // Initialize k-means clustering
+    std::vector<std::vector<double>> centroids(num_colors, std::vector<double>(3));
+    std::vector<int> assignments(width * height);
+    std::vector<int> counts(num_colors, 0);
+    
+    // Randomly initialize centroids
+    std::random_device rd;
+    std::mt19937 gen(rd());
+    std::uniform_real_distribution<> dis(0.0, 1.0);
+    
+    for (int i = 0; i < num_colors; i++) {
+        int idx = static_cast<int>(dis(gen) * width * height);
+        centroids[i][0] = lab_image[idx * 3];
+        centroids[i][1] = lab_image[idx * 3 + 1];
+        centroids[i][2] = lab_image[idx * 3 + 2];
+    }
+    
+    // K-means clustering
+    const int max_iterations = 100;
+    bool changed;
+    
+    for (int iter = 0; iter < max_iterations; iter++) {
+        changed = false;
+        std::fill(counts.begin(), counts.end(), 0);
+        
+        // Assign pixels to nearest centroid
+        for (int i = 0; i < width * height; i++) {
+            double min_dist = std::numeric_limits<double>::max();
+            int best_cluster = 0;
+            
+            for (int j = 0; j < num_colors; j++) {
+                double dist = 0;
+                for (int k = 0; k < 3; k++) {
+                    double diff = lab_image[i * 3 + k] - centroids[j][k];
+                    dist += diff * diff;
+                }
+                
+                if (dist < min_dist) {
+                    min_dist = dist;
+                    best_cluster = j;
+                }
+            }
+            
+            if (assignments[i] != best_cluster) {
+                assignments[i] = best_cluster;
+                changed = true;
+            }
+            counts[best_cluster]++;
+        }
+        
+        if (!changed) break;
+        
+        // Update centroids
+        std::vector<std::vector<double>> new_centroids(num_colors, std::vector<double>(3, 0.0));
+        
+        for (int i = 0; i < width * height; i++) {
+            int cluster = assignments[i];
+            for (int k = 0; k < 3; k++) {
+                new_centroids[cluster][k] += lab_image[i * 3 + k];
+            }
+        }
+        
+        for (int i = 0; i < num_colors; i++) {
+            if (counts[i] > 0) {
+                for (int k = 0; k < 3; k++) {
+                    centroids[i][k] = new_centroids[i][k] / counts[i];
+                }
+            }
+        }
+    }
+    
+    // Convert centroids back to RGB and sort by frequency
+    std::vector<std::pair<std::vector<double>, int>> color_freq;
+    for (int i = 0; i < num_colors; i++) {
+        std::vector<double> rgb = labToRGB({centroids[i][0], centroids[i][1], centroids[i][2]}, 1, 1);
+        color_freq.emplace_back(rgb, counts[i]);
+    }
+    
+    // Sort by frequency (descending)
+    std::sort(color_freq.begin(), color_freq.end(),
+              [](const auto& a, const auto& b) { return a.second > b.second; });
+    
+    // Prepare result
+    std::vector<double> result(num_colors * 3);
+    for (int i = 0; i < num_colors; i++) {
+        result[i * 3] = color_freq[i].first[0];
+        result[i * 3 + 1] = color_freq[i].first[1];
+        result[i * 3 + 2] = color_freq[i].first[2];
+    }
+    
+    return result;
+}
+
 } // namespace preprocessing 
