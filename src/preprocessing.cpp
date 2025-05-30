@@ -2183,4 +2183,130 @@ std::vector<double> ImagePreprocessor::computeDiffusionTensor(const std::vector<
     return diffusion;
 }
 
+std::vector<double> ImagePreprocessor::rgbToLab(const std::vector<double>& rgb_image,
+                                              int width,
+                                              int height) {
+    if (!validateImageDimensions(rgb_image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    std::vector<double> lab_image(width * height * 3);
+    
+    for (int i = 0; i < width * height; i++) {
+        // Convert RGB to XYZ
+        double r = rgb_image[i * 3];
+        double g = rgb_image[i * 3 + 1];
+        double b = rgb_image[i * 3 + 2];
+        
+        double x = 0.412453 * r + 0.357580 * g + 0.180423 * b;
+        double y = 0.212671 * r + 0.715160 * g + 0.072169 * b;
+        double z = 0.019334 * r + 0.119193 * g + 0.950227 * b;
+        
+        // Convert XYZ to Lab
+        double xn = 0.950456;
+        double yn = 1.0;
+        double zn = 1.088754;
+        
+        double fx = x / xn > 0.008856 ? std::pow(x / xn, 1.0/3.0) : (7.787 * x / xn + 16.0/116.0);
+        double fy = y / yn > 0.008856 ? std::pow(y / yn, 1.0/3.0) : (7.787 * y / yn + 16.0/116.0);
+        double fz = z / zn > 0.008856 ? std::pow(z / zn, 1.0/3.0) : (7.787 * z / zn + 16.0/116.0);
+        
+        lab_image[i * 3] = 116.0 * fy - 16.0;     // L
+        lab_image[i * 3 + 1] = 500.0 * (fx - fy); // a
+        lab_image[i * 3 + 2] = 200.0 * (fy - fz); // b
+    }
+    
+    return lab_image;
+}
+
+std::vector<double> ImagePreprocessor::labToRGB(const std::vector<double>& lab_image,
+                                              int width,
+                                              int height) {
+    if (!validateImageDimensions(lab_image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    std::vector<double> rgb_image(width * height * 3);
+    
+    for (int i = 0; i < width * height; i++) {
+        double l = lab_image[i * 3];
+        double a = lab_image[i * 3 + 1];
+        double b = lab_image[i * 3 + 2];
+        
+        // Convert Lab to XYZ
+        double fy = (l + 16.0) / 116.0;
+        double fx = a / 500.0 + fy;
+        double fz = fy - b / 200.0;
+        
+        double xn = 0.950456;
+        double yn = 1.0;
+        double zn = 1.088754;
+        
+        double x = xn * (fx > 0.206893 ? std::pow(fx, 3.0) : (fx - 16.0/116.0) / 7.787);
+        double y = yn * (fy > 0.206893 ? std::pow(fy, 3.0) : (fy - 16.0/116.0) / 7.787);
+        double z = zn * (fz > 0.206893 ? std::pow(fz, 3.0) : (fz - 16.0/116.0) / 7.787);
+        
+        // Convert XYZ to RGB
+        rgb_image[i * 3] = 3.240479 * x - 1.537150 * y - 0.498535 * z;     // R
+        rgb_image[i * 3 + 1] = -0.969256 * x + 1.875992 * y + 0.041556 * z; // G
+        rgb_image[i * 3 + 2] = 0.055648 * x - 0.204043 * y + 1.057311 * z;  // B
+        
+        // Clamp values
+        for (int j = 0; j < 3; j++) {
+            rgb_image[i * 3 + j] = std::clamp(rgb_image[i * 3 + j], 0.0, 1.0);
+        }
+    }
+    
+    return rgb_image;
+}
+
+std::vector<double> ImagePreprocessor::rgbToYUV(const std::vector<double>& rgb_image,
+                                              int width,
+                                              int height) {
+    if (!validateImageDimensions(rgb_image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    std::vector<double> yuv_image(width * height * 3);
+    
+    for (int i = 0; i < width * height; i++) {
+        double r = rgb_image[i * 3];
+        double g = rgb_image[i * 3 + 1];
+        double b = rgb_image[i * 3 + 2];
+        
+        yuv_image[i * 3] = 0.299 * r + 0.587 * g + 0.114 * b;     // Y
+        yuv_image[i * 3 + 1] = -0.14713 * r - 0.28886 * g + 0.436 * b; // U
+        yuv_image[i * 3 + 2] = 0.615 * r - 0.51499 * g - 0.10001 * b;  // V
+    }
+    
+    return yuv_image;
+}
+
+std::vector<double> ImagePreprocessor::yuvToRGB(const std::vector<double>& yuv_image,
+                                              int width,
+                                              int height) {
+    if (!validateImageDimensions(yuv_image, width * 3, height)) {
+        throw std::invalid_argument("Invalid image dimensions");
+    }
+    
+    std::vector<double> rgb_image(width * height * 3);
+    
+    for (int i = 0; i < width * height; i++) {
+        double y = yuv_image[i * 3];
+        double u = yuv_image[i * 3 + 1];
+        double v = yuv_image[i * 3 + 2];
+        
+        rgb_image[i * 3] = y + 1.13983 * v;           // R
+        rgb_image[i * 3 + 1] = y - 0.39465 * u - 0.58060 * v; // G
+        rgb_image[i * 3 + 2] = y + 2.03211 * u;       // B
+        
+        // Clamp values
+        for (int j = 0; j < 3; j++) {
+            rgb_image[i * 3 + j] = std::clamp(rgb_image[i * 3 + j], 0.0, 1.0);
+        }
+    }
+    
+    return rgb_image;
+}
+
 } // namespace preprocessing 
