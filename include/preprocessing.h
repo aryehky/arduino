@@ -160,6 +160,38 @@ public:
                                       int width,
                                       int height);
 
+    static std::vector<double> rgbToLab(const std::vector<double>& rgb_image,
+                                      int width,
+                                      int height);
+                                      
+    static std::vector<double> labToRGB(const std::vector<double>& lab_image,
+                                      int width,
+                                      int height);
+                                      
+    static std::vector<double> rgbToYUV(const std::vector<double>& rgb_image,
+                                      int width,
+                                      int height);
+                                      
+    static std::vector<double> yuvToRGB(const std::vector<double>& yuv_image,
+                                      int width,
+                                      int height);
+
+    // New color manipulation methods
+    static std::vector<double> adjustHue(const std::vector<double>& image,
+                                       int width,
+                                       int height,
+                                       double hue_shift);
+                                       
+    static std::vector<double> adjustSaturation(const std::vector<double>& image,
+                                              int width,
+                                              int height,
+                                              double factor);
+                                              
+    static std::vector<double> adjustBrightness(const std::vector<double>& image,
+                                              int width,
+                                              int height,
+                                              double factor);
+
     // New texture analysis methods
     static std::vector<double> computeLocalBinaryPattern(const std::vector<double>& image,
                                                        int width,
