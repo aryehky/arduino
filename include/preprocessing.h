@@ -206,6 +206,63 @@ public:
                                             int height,
                                             int max_iterations = 100);
 
+    // New image enhancement methods
+    static std::vector<double> unsharpMasking(const std::vector<double>& image,
+                                            int width,
+                                            int height,
+                                            double amount = 1.0,
+                                            double radius = 1.0);
+                                            
+    static std::vector<double> toneMapping(const std::vector<double>& image,
+                                         int width,
+                                         int height,
+                                         const std::string& method = "reinhard");
+                                         
+    static std::vector<double> denoiseNonLocalMeans(const std::vector<double>& image,
+                                                  int width,
+                                                  int height,
+                                                  double h = 10.0,
+                                                  int template_size = 7,
+                                                  int search_size = 21);
+
+    // New feature matching methods
+    static std::vector<std::pair<std::pair<int, int>, std::pair<int, int>>> matchFeatures(
+        const std::vector<double>& image1,
+        const std::vector<double>& image2,
+        int width1,
+        int height1,
+        int width2,
+        int height2,
+        const std::string& method = "sift");
+        
+    static std::vector<double> computeOpticalFlow(const std::vector<double>& image1,
+                                                const std::vector<double>& image2,
+                                                int width,
+                                                int height,
+                                                int window_size = 15);
+
+    // New advanced filtering methods
+    static std::vector<double> anisotropicDiffusion(const std::vector<double>& image,
+                                                  int width,
+                                                  int height,
+                                                  int iterations = 10,
+                                                  double kappa = 30.0,
+                                                  double lambda = 0.25);
+                                                  
+    static std::vector<double> guidedFilter(const std::vector<double>& image,
+                                          const std::vector<double>& guide,
+                                          int width,
+                                          int height,
+                                          int radius = 4,
+                                          double epsilon = 0.01);
+                                          
+    static std::vector<double> rollingGuidanceFilter(const std::vector<double>& image,
+                                                   int width,
+                                                   int height,
+                                                   int iterations = 4,
+                                                   double sigma_s = 3.0,
+                                                   double sigma_r = 0.1);
+
 private:
     // Helper functions
     static std::vector<double> applyKernel(
@@ -278,6 +335,50 @@ private:
                                          const std::vector<double>& target,
                                          int width,
                                          int height);
+
+    // New helper methods for image enhancement
+    static std::vector<double> computeGaussianPyramid(const std::vector<double>& image,
+                                                    int width,
+                                                    int height,
+                                                    int levels);
+                                                    
+    static std::vector<double> computeLaplacianPyramid(const std::vector<double>& image,
+                                                     int width,
+                                                     int height,
+                                                     int levels);
+                                                     
+    static std::vector<double> blendPyramids(const std::vector<double>& pyramid1,
+                                           const std::vector<double>& pyramid2,
+                                           int width,
+                                           int height,
+                                           int levels);
+    
+    // New helper methods for feature matching
+    static std::vector<double> computeSIFTFeatures(const std::vector<double>& image,
+                                                 int width,
+                                                 int height);
+                                                 
+    static std::vector<double> computeORBFeatures(const std::vector<double>& image,
+                                                int width,
+                                                int height);
+                                                
+    static double computeFeatureDistance(const std::vector<double>& feature1,
+                                       const std::vector<double>& feature2);
+    
+    // New helper methods for advanced filtering
+    static std::vector<double> computeStructureTensor(const std::vector<double>& image,
+                                                    int width,
+                                                    int height,
+                                                    double sigma);
+                                                    
+    static std::vector<double> computeEigenvalues(const std::vector<double>& tensor,
+                                                int width,
+                                                int height);
+                                                
+    static std::vector<double> computeDiffusionTensor(const std::vector<double>& eigenvalues,
+                                                    int width,
+                                                    int height,
+                                                    double kappa);
 };
 
 // Validation utilities
